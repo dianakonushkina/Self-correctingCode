@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Самокорректирующийся код</title>
+<style>
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #f0f2f5;
+    margin: 0;
+    padding: 30px;
+  }
+
+  h2 {
+    text-align: center;
+    color: #333;
+  }
+
+  .card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    margin: 15px auto;
+    max-width: 500px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
+
+  label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: #555;
+  }
+
+  input[type="text"] {
+    width: 100%;
+    padding: 10px;
+    font-family: monospace;
+    font-size: 16px;
+    margin-bottom: 10px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    transition: 0.2s;
+    box-sizing: border-box;
+  }
+
+  input[type="text"]:focus {
+    outline: none;
+    border-color: #db2777;
+    box-shadow: 0 0 5px rgba(74,144,226,0.5);
+  }
+
+  button {
+    padding: 10px 15px;
+    font-size: 16px;
+    border: none;
+    border-radius: 8px;
+    background-color: #f05b9e;
+    color: white;
+    cursor: pointer;
+    transition: 0.2s;
+  }
+
+  button:hover {
+    background-color: #c53375;
+  }
+
+  .output {
+    margin-top: 10px;
+    font-family: monospace;
+    font-size: 16px;
+    word-break: break-all;
+  }
+
+  .error-text {
+    color: red;
+    font-weight: bold;
+    margin-top: 5px;
+  }
+
+  .highlight-error span {
+    color: red;
+    font-weight: bold;
+  }
+
+  hr {
+    margin: 30px 0;
+    border: none;
+    border-top: 1px solid #ddd;
+  }
+</style>
+</head>
+<body>
+
+<h2>Самокорректирующийся код</h2>
+
+<div class="card">
+  <label>Введите исходное сообщение (только 0 и 1):</label>
+  <input type="text" id="inputMessage" placeholder="например 101">
+  <button onclick="createMessage()">Создать сообщение с контрольными битами</button>
+  <div class="output error-text" id="inputError"></div>
+  <div class="output" id="encodedOutput"></div>
+</div>
+
+<div class="card">
+  <label>Допустите в сообщении ошибку:</label>
+  <input type="text" id="modifiedMessage" placeholder="например 101110">
+  <button onclick="checkMessage()">Проверить сообщение</button>
+  <div class="output error-text" id="checkError"></div>
+  <div class="output highlight-error" id="checkOutput"></div>
+</div>
+
+<script>
+//функция возвращает массив с иксами и контрольными битами (пока контрольные биты равны 0) и массив позиций контрольных битов.
+function insertParityBits(dataBits) {
+    let n = dataBits.length;
+    let r = 1;
+    while ((n + r + 1) > Math.pow(2, r)) r++;
+    let totalLength = n + r;
+    let result = Array(totalLength).fill(0);
+    let j = 0;
+    let parityPositions = [];
+    for (let i = 0; i < totalLength; i++) {
+        let posFromRight = totalLength - i;
+        if (isPowerOfTwo(posFromRight)) {
+            parityPositions.push(i);
+            result[i] = 0;
+        } else {
+            result[i] = parseInt(dataBits[j]);
+            j++;
+        }
+    }
+    return {result, parityPositions};
+}
+
+function isPowerOfTwo(x) {
+    return (x & (x - 1)) === 0;
+}
+
+//функция вычисляет значения контрольных битов (игреков) на основе текущих иксов.
+function calculateParity(arr, parityPositions) {
+    let n = arr.length;
+    for (let pi of parityPositions) {
+        let posFromRight = n - pi;
+        let parity = 0;
+        for (let i = 0; i < n; i++) {
+            let p = n - i;
+            if (((p & posFromRight) !== 0) && (i !== pi)) {
+                parity ^= arr[i]; //используется XOR (сложение по модулю 2) для проверки каждой позиции контрольного бита.
+            }
+        }
+        arr[pi] = parity;
+    }
+    return arr;
+}
+
+//функция показывает пользователю полное сообщение с контрольными битами.
+function createMessage() {
+    let input = document.getElementById("inputMessage").value.trim();
+    document.getElementById("inputError").textContent = "";
+    document.getElementById("encodedOutput").textContent = "";
+    document.getElementById("checkOutput").textContent = "";
+    document.getElementById("checkError").textContent = "";
+
+    if (!/^[01]+$/.test(input)) {
+        document.getElementById("inputError").textContent = "Сообщение не должно иметь других символов, кроме 0 и 1";
+        return;
+    }
+    let {result, parityPositions} = insertParityBits(input);
+    result = calculateParity(result, parityPositions);
+    document.getElementById("encodedOutput").textContent = "Сообщение с контрольными битами: " + result.join('');
+    document.getElementById("modifiedMessage").value = result.join('');
+}
+
+//функция вычисляет, где была допущена ошибка.
+function checkMessage() {
+    document.getElementById("checkError").textContent = "";
+    document.getElementById("checkOutput").textContent = "";
+
+    let original = document.getElementById("encodedOutput").textContent.replace(/\D/g, '');
+    let msg = document.getElementById("modifiedMessage").value.trim();
+
+    if (!/^[01]+$/.test(msg)) {
+        document.getElementById("checkError").textContent = "Сообщение не должно иметь других символов, кроме 0 и 1";
+        return;
+    }
+    if (msg.length !== original.length) {
+        document.getElementById("checkError").textContent = "Длина сообщения с ошибкой должна совпадать с длиной сообщения с контрольными битами";
+        return;
+    }
+
+    let diffCount = 0;
+    let errorIndex = -1;
+    for (let i = 0; i < msg.length; i++) {
+        if (msg[i] !== original[i]) {
+            diffCount++;
+            errorIndex = i;
+        }
+    }
+    if (diffCount === 0) {
+        document.getElementById("checkError").textContent = "Сообщение не содержит ошибок. Допустите одну ошибку.";
+        return;
+    }
+    if (diffCount > 1) {
+        document.getElementById("checkError").textContent = "Должна быть допущена только одна ошибка";
+        return;
+    }
+
+    let arr = msg.split('').map(Number);
+    let n = arr.length;
+    let parityPositions = [];
+    for (let i = 0; i < n; i++) {
+        let posFromRight = n - i;
+        if (isPowerOfTwo(posFromRight)) parityPositions.push(i);
+    }
+
+    //если контрольные суммы (XOR) не равны нулю - сумма даёт номер ошибочного бита справа налево.
+    let syndrome = 0;
+    for (let pi of parityPositions) {
+        let posFromRight = n - pi;
+        let parity = 0;
+        for (let i = 0; i < n; i++) {
+            let p = n - i;
+            if ((p & posFromRight) !== 0) {
+                parity ^= arr[i];
+            }
+        }
+        if (parity !== 0) syndrome += posFromRight;
+    }
+
+    //подсветка ошибки
+    let outputHtml = "";
+    for (let i = 0; i < arr.length; i++) {
+        let posFromRight = n - i;
+        if (posFromRight === syndrome) {
+            outputHtml += "<span>" + arr[i] + "</span>";
+        } else {
+            outputHtml += arr[i];
+        }
+    }
+
+    document.getElementById("checkOutput").innerHTML = "Наглядно: " + outputHtml;
+    if (syndrome === 0) {
+        document.getElementById("checkError").textContent = "Ошибок не обнаружено!";
+    } else {
+        document.getElementById("checkError").textContent = "Номер позиции с ошибкой (справа налево): " + syndrome;
+    }
+}
+</script>
+
+</body>
+</html>
